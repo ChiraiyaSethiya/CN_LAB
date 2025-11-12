@@ -1,0 +1,64 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#pragma comment(lib, "ws2_32.lib") // Link with Winsock library
+
+int main()
+{
+    WSADATA wsa;
+    SOCKET sock;
+    struct sockaddr_in server;
+    char server_ip[50] = "127.0.0.1";
+    int port = 7777;
+    char filename[256], server_reply[20000];
+
+    printf("Initializing Winsock...\n");
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+        printf("Failed. Error Code: %d\n", WSAGetLastError());
+        return 1;
+    }
+    printf("Winsock initialized.\n");
+
+    // Create socket
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == INVALID_SOCKET) {
+        printf("Could not create socket: %d\n", WSAGetLastError());
+        WSACleanup();
+        return 1;
+    }
+    printf("Socket created.\n");
+
+    server.sin_addr.s_addr = inet_addr(server_ip);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(port);
+
+    // Connect to server
+    if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
+        printf("Connection failed. Server might not be running.\n");
+        closesocket(sock);
+        WSACleanup();
+        return 1;
+    }
+
+    printf("Connected to server at %s:%d\n", server_ip, port);
+
+    printf("Enter the file path (example: C:\\\\Users\\\\YourName\\\\Desktop\\\\test.txt):\n> ");
+    scanf("%s", filename);
+
+    send(sock, filename, strlen(filename), 0);
+
+    memset(server_reply, 0, sizeof(server_reply));
+    recv(sock, server_reply, sizeof(server_reply) - 1, 0);
+
+    printf("\n--- File Content from Server ---\n\n");
+    printf("%s\n", server_reply);
+    printf("\n--------------------------------\n");
+
+    closesocket(sock);
+    WSACleanup();
+
+    return 0;
+}
