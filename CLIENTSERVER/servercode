@@ -1,0 +1,88 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#pragma comment(lib, "ws2_32.lib") // Link with Winsock library
+
+int main()
+{
+    WSADATA wsa;
+    SOCKET server_socket, client_socket;
+    struct sockaddr_in server, client;
+    int c;
+    char filename[256], buffer[20000], chunk[1024];
+    FILE *fp;
+
+    printf("Initializing Winsock...\n");
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+        printf("Failed. Error Code: %d\n", WSAGetLastError());
+        return 1;
+    }
+    printf("Winsock initialized.\n");
+
+    // Create socket
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == INVALID_SOCKET) {
+        printf("Could not create socket: %d\n", WSAGetLastError());
+        WSACleanup();
+        return 1;
+    }
+    printf("Socket created.\n");
+
+    // Prepare the sockaddr_in structure
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(7777);
+
+    // Bind
+    if (bind(server_socket, (struct sockaddr *)&server, sizeof(server)) == SOCKET_ERROR) {
+        printf("Bind failed with error code: %d\n", WSAGetLastError());
+        closesocket(server_socket);
+        WSACleanup();
+        return 1;
+    }
+    printf("Bind done.\n");
+
+    // Listen to incoming connections
+    listen(server_socket, 3);
+    printf("Waiting for incoming connections on port 7777...\n");
+
+    c = sizeof(struct sockaddr_in);
+    client_socket = accept(server_socket, (struct sockaddr *)&client, &c);
+    if (client_socket == INVALID_SOCKET) {
+        printf("Accept failed: %d\n", WSAGetLastError());
+        closesocket(server_socket);
+        WSACleanup();
+        return 1;
+    }
+
+    printf("Client connected.\n");
+
+    // Receive filename
+    memset(filename, 0, sizeof(filename));
+    recv(client_socket, filename, sizeof(filename), 0);
+    printf("Client requested file: %s\n", filename);
+
+    fp = fopen(filename, "r");
+    if (fp == NULL) {
+        char *err = "Error: File not found.";
+        send(client_socket, err, strlen(err), 0);
+        printf("File not found.\n");
+    } else {
+        memset(buffer, 0, sizeof(buffer));
+        while (fgets(chunk, sizeof(chunk), fp) != NULL)
+            strcat(buffer, chunk);
+        send(client_socket, buffer, strlen(buffer), 0);
+        printf("File sent successfully.\n");
+        fclose(fp);
+    }
+
+    closesocket(client_socket);
+    closesocket(server_socket);
+    WSACleanup();
+
+    printf("Server closed.\n");
+    return 0;
+}
